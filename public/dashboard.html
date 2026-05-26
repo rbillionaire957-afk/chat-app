@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - pChat</title>
+    <title>pChat Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -13,118 +13,325 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
-        }
-
-        .navbar {
             background: linear-gradient(135deg, #131eb0 0%, #79c3e8 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .dashboard {
+            display: flex;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 350px;
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: #131eb0;
             color: white;
-            padding: 15px 30px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-
-        .nav-buttons {
-            display: flex;
             gap: 15px;
         }
 
-        .nav-btn {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .nav-btn:hover {
-            background: rgba(255,255,255,0.3);
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 30px auto;
-            padding: 0 20px;
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .stat-title {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-
-        .stat-value {
-            font-size: 32px;
-            font-weight: bold;
-            color: #131eb0;
-        }
-
-        .otp-list {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .otp-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .otp-item {
-            border-bottom: 1px solid #e0e0e0;
-            padding: 15px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .otp-item:hover {
-            background: #f9f9f9;
-        }
-
-        .otp-number {
-            font-weight: bold;
-            color: #131eb0;
-        }
-
-        .otp-code {
-            display: inline-block;
+        .profile-pic {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
             background: #79c3e8;
-            padding: 2px 8px;
-            border-radius: 5px;
-            font-family: monospace;
-            margin: 5px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            cursor: pointer;
+            overflow: hidden;
         }
 
-        .otp-time {
-            font-size: 12px;
+        .profile-pic img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .user-status {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .status-edit {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .search-bar {
+            padding: 15px;
+            background: #f5f5f5;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 20px;
+            background: white;
+        }
+
+        .users-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .user-item {
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .user-item:hover {
+            background: #f5f5f5;
+        }
+
+        .user-item.active {
+            background: #e3f2fd;
+        }
+
+        .user-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #131eb0 0%, #79c3e8 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            position: relative;
+        }
+
+        .online-indicator {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4caf50;
+            border: 2px solid white;
+        }
+
+        .user-details {
+            flex: 1;
+        }
+
+        .user-details h4 {
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+
+        .user-details p {
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .last-message-time {
+            font-size: 0.7rem;
             color: #999;
         }
 
+        /* Chat Area */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f8f9fa;
+        }
+
+        .chat-header {
+            padding: 15px 20px;
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chat-user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .call-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .call-btn {
+            padding: 8px 15px;
+            background: #131eb0;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            max-width: 60%;
+            padding: 10px 15px;
+            border-radius: 15px;
+            position: relative;
+        }
+
+        .message.sent {
+            background: #131eb0;
+            color: white;
+            align-self: flex-end;
+        }
+
+        .message.received {
+            background: white;
+            color: #333;
+            align-self: flex-start;
+            border: 1px solid #e0e0e0;
+        }
+
+        .message-text {
+            word-wrap: break-word;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            margin-top: 5px;
+            opacity: 0.7;
+        }
+
+        .message-actions {
+            position: absolute;
+            right: 5px;
+            top: 5px;
+            display: none;
+            gap: 5px;
+        }
+
+        .message:hover .message-actions {
+            display: flex;
+        }
+
+        .message-action {
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 2px 5px;
+            cursor: pointer;
+            font-size: 0.7rem;
+        }
+
+        .reaction-picker {
+            position: absolute;
+            background: white;
+            border-radius: 20px;
+            padding: 5px;
+            display: flex;
+            gap: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .reaction-emoji {
+            cursor: pointer;
+            padding: 5px;
+            font-size: 1.2rem;
+        }
+
+        .message-reactions {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+            font-size: 0.8rem;
+        }
+
+        .typing-indicator {
+            padding: 10px 20px;
+            font-size: 0.8rem;
+            color: #666;
+            font-style: italic;
+        }
+
+        .message-input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .attach-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .send-btn {
+            background: #131eb0;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+
+        .file-preview {
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            margin: 5px;
+        }
+
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -133,92 +340,107 @@
             width: 100%;
             height: 100%;
             background: rgba(0,0,0,0.5);
+            z-index: 1000;
             justify-content: center;
             align-items: center;
-            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
         }
 
         .modal-content {
             background: white;
-            border-radius: 15px;
             padding: 30px;
-            max-width: 500px;
+            border-radius: 20px;
+            max-width: 400px;
             width: 90%;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+        }
+
+        .modal-content input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
         }
 
         .modal-buttons {
             display: flex;
             gap: 10px;
-            margin-top: 20px;
+            justify-content: flex-end;
         }
 
-        .btn {
-            flex: 1;
-            padding: 10px;
+        .modal-buttons button {
+            padding: 8px 20px;
             border: none;
             border-radius: 10px;
             cursor: pointer;
         }
-
-        .btn-primary {
-            background: #131eb0;
-            color: white;
-        }
-
-        .btn-secondary {
-            background: #79c3e8;
-            color: white;
-        }
-
-        .btn-danger {
-            background: #f44336;
-            color: white;
-        }
     </style>
 </head>
 <body>
-    <div class="navbar">
-        <div class="logo">pChat</div>
-        <div class="nav-buttons">
-            <button class="nav-btn" onclick="window.location.href='/chat'">💬 Chat</button>
-            <button class="nav-btn" onclick="window.location.href='/call'">📞 Call</button>
-            <button class="nav-btn" id="logout-btn">🚪 Logout</button>
+    <div class="dashboard">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="profile-pic" id="profile-pic" onclick="openProfileModal()">
+                    <span id="profile-initial">👤</span>
+                </div>
+                <div class="user-info">
+                    <div class="user-name" id="user-name">Loading...</div>
+                    <div class="user-status" id="user-status"></div>
+                </div>
+                <button class="status-edit" onclick="editStatus()">✎</button>
+            </div>
+            
+            <div class="search-bar">
+                <input type="text" placeholder="Search or start new chat" id="search-input">
+            </div>
+            
+            <div class="users-list" id="users-list"></div>
+        </div>
+        
+        <div class="chat-area" id="chat-area" style="display: none;">
+            <div class="chat-header">
+                <div class="chat-user-info">
+                    <div class="user-avatar" id="chat-avatar"></div>
+                    <div>
+                        <h3 id="chat-username"></h3>
+                        <div class="user-status" id="chat-status"></div>
+                    </div>
+                </div>
+                <div class="call-buttons">
+                    <button class="call-btn" onclick="startCall('audio')">📞 Voice Call</button>
+                    <button class="call-btn" onclick="startCall('video')">📹 Video Call</button>
+                </div>
+            </div>
+            
+            <div class="messages-container" id="messages-container"></div>
+            
+            <div class="typing-indicator" id="typing-indicator" style="display: none;"></div>
+            
+            <div class="message-input-area">
+                <button class="attach-btn" onclick="document.getElementById('file-input').click()">📎</button>
+                <input type="file" id="file-input" style="display: none" multiple>
+                <textarea class="message-input" id="message-input" placeholder="Type a message..." rows="1"></textarea>
+                <button class="send-btn" onclick="sendMessage()">Send</button>
+            </div>
         </div>
     </div>
 
-    <div class="container">
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-title">Total OTPs Sent</div>
-                <div class="stat-value" id="total-otp">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-title">Active Users</div>
-                <div class="stat-value" id="active-users">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-title">Messages Today</div>
-                <div class="stat-value" id="messages-today">0</div>
-            </div>
-        </div>
-
-        <div class="otp-list">
-            <div class="otp-header">
-                <h3>Recent OTP Requests</h3>
-                <button class="nav-btn" onclick="refreshOTP()">Refresh</button>
-            </div>
-            <div id="otp-list"></div>
-        </div>
-    </div>
-
-    <div id="modal" class="modal">
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="modal">
         <div class="modal-content">
-            <h3 id="modal-title">OTP Details</h3>
-            <p id="modal-message"></p>
+            <h3>Profile Settings</h3>
+            <input type="file" id="profile-upload" accept="image/*">
+            <input type="text" id="status-input" placeholder="Status message">
             <div class="modal-buttons">
-                <button class="btn btn-primary" id="copy-code">Copy Code</button>
-                <button class="btn btn-secondary" id="get-info">Get Info</button>
-                <button class="btn btn-danger" id="close-modal">Close</button>
+                <button onclick="closeProfileModal()">Cancel</button>
+                <button onclick="updateProfile()">Save</button>
             </div>
         </div>
     </div>
@@ -226,75 +448,271 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let currentOTP = null;
-
-        async function loadStats() {
-            const response = await fetch('/api/otps');
-            const otps = await response.json();
-            document.getElementById('total-otp').textContent = otps.length;
+        let currentUser = null;
+        let currentChat = null;
+        let typingTimeout = null;
+        let replyToMessage = null;
+        
+        // Load user data
+        async function loadUserData() {
+            const response = await fetch('/api/me');
+            if (response.ok) {
+                currentUser = await response.json();
+                document.getElementById('user-name').textContent = currentUser.username;
+                document.getElementById('user-status').textContent = currentUser.status;
+                if (currentUser.profilePic) {
+                    document.getElementById('profile-pic').innerHTML = `<img src="${currentUser.profilePic}" alt="Profile">`;
+                } else {
+                    document.getElementById('profile-initial').textContent = currentUser.username.charAt(0).toUpperCase();
+                }
+            } else {
+                window.location.href = '/';
+            }
         }
-
-        async function loadOTPs() {
-            const response = await fetch('/api/otps');
-            const otps = await response.json();
+        
+        // Load users list
+        async function loadUsers() {
+            const response = await fetch('/api/users');
+            const users = await response.json();
+            const usersList = document.getElementById('users-list');
             
-            const otpList = document.getElementById('otp-list');
-            otpList.innerHTML = otps.reverse().slice(0, 20).map(otp => `
-                <div class="otp-item" onclick="showOTPDetails('${otp.id}')">
-                    <div class="otp-number">📞 ${otp.phoneNumber}</div>
-                    <div class="otp-code">Code: ${otp.code}</div>
-                    <div class="otp-time">${new Date(otp.createdAt).toLocaleString()}</div>
+            usersList.innerHTML = users.map(user => `
+                <div class="user-item" onclick="selectChat('${user.id}')" data-user-id="${user.id}">
+                    <div class="user-avatar">
+                        ${user.profilePic ? `<img src="${user.profilePic}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : user.username.charAt(0).toUpperCase()}
+                        ${user.isOnline ? '<div class="online-indicator"></div>' : ''}
+                    </div>
+                    <div class="user-details">
+                        <h4>${user.username}</h4>
+                        <p>${user.status || 'Online'}</p>
+                    </div>
                 </div>
             `).join('');
         }
-
-        async function showOTPDetails(otpId) {
-            const response = await fetch(`/api/check/${otpId}`);
-            currentOTP = await response.json();
+        
+        // Select chat
+        async function selectChat(userId) {
+            currentChat = userId;
+            document.getElementById('chat-area').style.display = 'flex';
             
-            document.getElementById('modal-title').textContent = 'OTP Details';
-            document.getElementById('modal-message').innerHTML = `
-                <strong>Code:</strong> ${currentOTP.code}<br>
-                <strong>Message:</strong> ${currentOTP.message}<br>
-                <strong>Expires:</strong> ${new Date(currentOTP.expiresAt).toLocaleString()}<br>
-                <strong>Status:</strong> ${currentOTP.used ? 'Used' : 'Active'}
-            `;
-            document.getElementById('modal').style.display = 'flex';
-        }
-
-        document.getElementById('copy-code').onclick = () => {
-            if (currentOTP && currentOTP.code) {
-                navigator.clipboard.writeText(currentOTP.code);
-                alert('Code copied to clipboard!');
+            // Get user details
+            const response = await fetch('/api/users');
+            const users = await response.json();
+            const user = users.find(u => u.id === userId);
+            
+            if (user) {
+                document.getElementById('chat-username').textContent = user.username;
+                document.getElementById('chat-status').textContent = user.isOnline ? 'Online' : 'Last seen recently';
+                document.getElementById('chat-avatar').innerHTML = user.profilePic ? 
+                    `<img src="${user.profilePic}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : 
+                    user.username.charAt(0).toUpperCase();
             }
-        };
-
-        document.getElementById('get-info').onclick = () => {
-            if (currentOTP && currentOTP.info) {
-                window.open(currentOTP.info, '_blank');
-            }
-        };
-
-        document.getElementById('close-modal').onclick = () => {
-            document.getElementById('modal').style.display = 'none';
-        };
-
-        document.getElementById('logout-btn').onclick = async () => {
-            await fetch('/api/logout', { method: 'POST' });
-            window.location.href = '/';
-        };
-
-        function refreshOTP() {
-            loadOTPs();
+            
+            // Load messages
+            const messagesResponse = await fetch(`/api/messages/${userId}`);
+            const messages = await messagesResponse.json();
+            displayMessages(messages);
+            
+            // Mark messages as read
+            socket.emit('mark-read', { from: userId });
         }
-
-        socket.on('new-otp', (data) => {
-            loadOTPs();
-            loadStats();
+        
+        // Display messages
+        function displayMessages(messages) {
+            const container = document.getElementById('messages-container');
+            container.innerHTML = messages.map(msg => `
+                <div class="message ${msg.from === currentUser.id ? 'sent' : 'received'}" data-message-id="${msg.id}">
+                    ${msg.replyTo ? `<div class="reply-preview">↩️ ${msg.replyTo.text.substring(0, 50)}</div>` : ''}
+                    <div class="message-text">${escapeHtml(msg.text)}</div>
+                    ${msg.fileUrl ? `<div class="file-attachment"><a href="${msg.fileUrl}" target="_blank">📎 ${msg.fileName}</a></div>` : ''}
+                    <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+                    ${msg.reactions.length > 0 ? `<div class="message-reactions">${msg.reactions.map(r => r.emoji).join(' ')}</div>` : ''}
+                    <div class="message-actions">
+                        <button class="message-action" onclick="showReactionPicker('${msg.id}')">😊</button>
+                        ${msg.from === currentUser.id ? `
+                            <button class="message-action" onclick="editMessage('${msg.id}', '${escapeHtml(msg.text)}')">✏️</button>
+                            <button class="message-action" onclick="deleteMessage('${msg.id}')">🗑️</button>
+                        ` : ''}
+                        <button class="message-action" onclick="replyToMessage('${msg.id}', '${escapeHtml(msg.text)}')">↩️</button>
+                    </div>
+                </div>
+            `).join('');
+            
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // Send message
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            
+            if (text && currentChat) {
+                socket.emit('send-message', {
+                    to: currentChat,
+                    text: text,
+                    type: 'text',
+                    replyTo: replyToMessage
+                });
+                input.value = '';
+                replyToMessage = null;
+            }
+        }
+        
+        // Socket events
+        socket.on('new-message', (message) => {
+            if (message.from === currentChat || message.to === currentChat) {
+                loadMessages(currentChat);
+            }
         });
-
-        loadStats();
-        loadOTPs();
+        
+        socket.on('message-updated', (message) => {
+            if (message.from === currentChat || message.to === currentChat) {
+                loadMessages(currentChat);
+            }
+        });
+        
+        socket.on('user-typing', (data) => {
+            if (data.from === currentChat) {
+                const indicator = document.getElementById('typing-indicator');
+                indicator.textContent = `${data.fromName} is typing...`;
+                indicator.style.display = 'block';
+                setTimeout(() => {
+                    indicator.style.display = 'none';
+                }, 2000);
+            }
+        });
+        
+        // Typing indicator
+        const messageInput = document.getElementById('message-input');
+        messageInput.addEventListener('input', () => {
+            if (currentChat) {
+                socket.emit('typing', { to: currentChat });
+            }
+        });
+        
+        // File upload
+        document.getElementById('file-input').addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            for (const file of files) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    socket.emit('send-message', {
+                        to: currentChat,
+                        text: `📎 ${file.name}`,
+                        type: 'file',
+                        fileUrl: event.target.result,
+                        fileName: file.name
+                    });
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Profile functions
+        function openProfileModal() {
+            document.getElementById('profile-modal').classList.add('active');
+            document.getElementById('status-input').value = currentUser.status;
+        }
+        
+        function closeProfileModal() {
+            document.getElementById('profile-modal').classList.remove('active');
+        }
+        
+        async function updateProfile() {
+            const status = document.getElementById('status-input').value;
+            const file = document.getElementById('profile-upload').files[0];
+            
+            if (status) {
+                await fetch('/api/update-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
+                });
+            }
+            
+            if (file) {
+                const formData = new FormData();
+                formData.append('profile', file);
+                await fetch('/api/upload-profile', {
+                    method: 'POST',
+                    body: formData
+                });
+            }
+            
+            closeProfileModal();
+            loadUserData();
+            loadUsers();
+        }
+        
+        function editStatus() {
+            openProfileModal();
+        }
+        
+        function startCall(type) {
+            if (currentChat) {
+                window.location.href = `/call/${currentChat}?type=${type}`;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function loadMessages(userId) {
+            const response = await fetch(`/api/messages/${userId}`);
+            const messages = await response.json();
+            displayMessages(messages);
+        }
+        
+        function showReactionPicker(messageId) {
+            const reactions = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+            const picker = document.createElement('div');
+            picker.className = 'reaction-picker';
+            picker.innerHTML = reactions.map(r => `<span class="reaction-emoji" onclick="addReaction('${messageId}', '${r}')">${r}</span>`).join('');
+            document.body.appendChild(picker);
+            picker.style.position = 'absolute';
+            picker.style.left = event.clientX + 'px';
+            picker.style.top = event.clientY + 'px';
+            setTimeout(() => picker.remove(), 5000);
+        }
+        
+        function addReaction(messageId, emoji) {
+            socket.emit('add-reaction', { messageId, emoji });
+        }
+        
+        function editMessage(messageId, oldText) {
+            const newText = prompt('Edit message:', oldText);
+            if (newText && newText !== oldText) {
+                socket.emit('edit-message', { messageId, newText });
+            }
+        }
+        
+        function deleteMessage(messageId) {
+            if (confirm('Delete this message?')) {
+                socket.emit('delete-message', { messageId, forEveryone: true });
+            }
+        }
+        
+        function replyToMessage(messageId, text) {
+            replyToMessage = { id: messageId, text: text };
+            document.getElementById('message-input').placeholder = `Replying to: ${text.substring(0, 50)}...`;
+        }
+        
+        // Initialize
+        loadUserData();
+        loadUsers();
+        
+        // Search functionality
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const userItems = document.querySelectorAll('.user-item');
+            userItems.forEach(item => {
+                const name = item.querySelector('h4').textContent.toLowerCase();
+                item.style.display = name.includes(searchTerm) ? 'flex' : 'none';
+            });
+        });
     </script>
 </body>
 </html>
