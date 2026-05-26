@@ -1,7 +1,7 @@
 {
-  "name": "video-chat-app",
+  "name": "whatsapp-clone",
   "version": "1.0.0",
-  "description": "Video conferencing app with chat, voice, video calls, and file sharing",
+  "description": "WhatsApp-like chat and call application with OTP sending",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -10,12 +10,19 @@
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.6.1",
+    "pg": "^8.11.0",
     "dotenv": "^16.0.3",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.0",
     "cors": "^2.8.5",
-    "multer": "^1.4.5-lts.1",
-    "uuid": "^9.0.0",
+    "helmet": "^7.0.0",
     "compression": "^1.7.4",
-    "helmet": "^7.0.0"
+    "express-rate-limit": "^6.7.0",
+    "express-session": "^1.17.3",
+    "connect-pg-simple": "^9.0.0",
+    "axios": "^1.4.0",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.22"
