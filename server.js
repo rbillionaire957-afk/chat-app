@@ -5,412 +5,534 @@ const path = require('path');
 const cors = require('cors');
 const compression = require('compression');
 const helmet = require('helmet');
-const session = require('express-session');
 const multer = require('multer');
+const session = require('express-session');
 const fs = require('fs-extra');
+const axios = require('axios');
+const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
-const rateLimit = require('express-rate-limit');
 require('dotenv').config();
-
-const { auth, sessionConfig, handleLogin, handleLogout } = require('./auth');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    },
-    maxHttpBufferSize: 1e8
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  },
+  maxHttpBufferSize: 1e8,
+  pingTimeout: 60000
 });
 
 // Middleware
 app.use(helmet({
-    contentSecurityPolicy: false,
+  contentSecurityPolicy: false,
 }));
 app.use(compression());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
-app.use(session(sessionConfig));
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 } // 7 days
+}));
 
 // Ensure database directories exist
-const dbDirs = ['database', 'database/profile', 'database/voice', 'database/files'];
-dbDirs.forEach(dir => fs.ensureDirSync(dir));
+const dbPaths = [
+  'database',
+  'database/profile',
+  'database/voice'
+];
+dbPaths.forEach(path => fs.ensureDirSync(path));
 
-// Database files
-const USERS_FILE = './database/users.json';
-const MESSAGES_FILE = './database/messages.json';
-const OTP_FILE = './database/otp_codes.json';
-const CALLS_FILE = './database/calls.json';
-
-// Initialize database files
-const initDB = () => {
-    const files = [USERS_FILE, MESSAGES_FILE, OTP_FILE, CALLS_FILE];
-    files.forEach(file => {
-        if (!fs.existsSync(file)) {
-            fs.writeJsonSync(file, []);
-        }
-    });
+// Initialize JSON files
+const initJSONFile = async (file, defaultData) => {
+  const filePath = `database/${file}`;
+  if (!await fs.pathExists(filePath)) {
+    await fs.writeJson(filePath, defaultData, { spaces: 2 });
+  }
 };
-initDB();
 
-// Rate limiter for OTP requests
-const otpLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 1, // 1 request per minute per number
-    keyGenerator: (req) => req.query.to,
-    handler: (req, res) => {
-        res.status(429).json({ 
-            error: 'Rate limit exceeded. Please wait 60 seconds before requesting another OTP.' 
-        });
-    }
-});
+initJSONFile('users.json', []);
+initJSONFile('messages.json', []);
+initJSONFile('otp_codes.json', []);
+initJSONFile('calls.json', []);
 
-// OTP Generation endpoint
-app.get('/api/send', otpLimiter, async (req, res) => {
-    const { to, code, info, text } = req.query;
-    
-    if (!to || !code || !info) {
-        return res.status(400).json({ error: 'Missing required parameters' });
-    }
-    
-    // Format phone number
-    const phoneNumber = to.startsWith('0') ? '255' + to.slice(1) : to;
-    
-    // Generate custom message with $code placeholder replaced
-    const defaultMessage = `Your verification code is: $code\n\nInfo: ${info}\n\nIf you didn't request this, please ignore.`;
-    const message = (text || defaultMessage).replace(/\$code/g, code);
-    
-    // Store OTP in database
-    const otpData = {
-        id: uuidv4(),
-        phoneNumber,
-        code,
-        info,
-        message,
-        createdAt: Date.now(),
-        expiresAt: Date.now() + (5 * 60 * 1000), // 5 minutes expiry
-        used: false
-    };
-    
-    const otps = fs.readJsonSync(OTP_FILE);
-    otps.push(otpData);
-    fs.writeJsonSync(OTP_FILE, otps);
-    
-    // Create notification for dashboard
-    const notification = {
-        id: uuidv4(),
-        type: 'otp',
-        phoneNumber,
-        code,
-        message,
-        timestamp: Date.now()
-    };
-    
-    io.emit('new-otp', notification);
-    
-    res.json({
-        success: true,
-        message: 'OTP generated successfully',
-        data: {
-            to: phoneNumber,
-            code,
-            info,
-            fullMessage: message,
-            expiresIn: '5 minutes'
-        }
-    });
-});
-
-// API to check OTP status
-app.get('/api/check/:otpId', (req, res) => {
-    const otps = fs.readJsonSync(OTP_FILE);
-    const otp = otps.find(o => o.id === req.params.otpId);
-    
-    if (!otp) {
-        return res.status(404).json({ error: 'OTP not found' });
-    }
-    
-    res.json({
-        used: otp.used,
-        expiresAt: otp.expiresAt,
-        isExpired: Date.now() > otp.expiresAt
-    });
-});
-
-// Authentication routes
-app.post('/api/login', handleLogin);
-app.post('/api/logout', handleLogout);
-app.get('/api/check-auth', (req, res) => {
-    res.json({ authenticated: !!req.session.authenticated });
-});
-
-// Protected routes
-app.get('/dashboard', auth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-
-app.get('/chat/:userId?', auth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'chat.html'));
-});
-
-app.get('/call/:userId?', auth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'call.html'));
-});
-
-// User management API
-app.get('/api/users', auth, (req, res) => {
-    const users = fs.readJsonSync(USERS_FILE);
-    res.json(users);
-});
-
-app.post('/api/users', auth, (req, res) => {
-    const { phoneNumber, name, profileImage } = req.body;
-    const users = fs.readJsonSync(USERS_FILE);
-    
-    let user = users.find(u => u.phoneNumber === phoneNumber);
-    if (!user) {
-        user = {
-            id: uuidv4(),
-            phoneNumber,
-            name,
-            profileImage: profileImage || '/default-avatar.png',
-            createdAt: Date.now(),
-            status: 'online'
-        };
-        users.push(user);
-        fs.writeJsonSync(USERS_FILE, users);
-    }
-    
-    res.json(user);
-});
-
-// Message API
-app.get('/api/messages/:userId', auth, (req, res) => {
-    const messages = fs.readJsonSync(MESSAGES_FILE);
-    const userMessages = messages.filter(m => 
-        m.from === req.params.userId || m.to === req.params.userId
-    );
-    res.json(userMessages);
-});
-
-app.post('/api/messages', auth, (req, res) => {
-    const { from, to, message, type, replyTo, fileUrl } = req.body;
-    const messages = fs.readJsonSync(MESSAGES_FILE);
-    
-    const newMessage = {
-        id: uuidv4(),
-        from,
-        to,
-        message,
-        type: type || 'text',
-        replyTo: replyTo || null,
-        fileUrl: fileUrl || null,
-        timestamp: Date.now(),
-        reactions: [],
-        edited: false,
-        deleted: false,
-        read: false
-    };
-    
-    messages.push(newMessage);
-    fs.writeJsonSync(MESSAGES_FILE, messages);
-    
-    // Emit to socket
-    io.to(to).emit('new-message', newMessage);
-    io.to(from).emit('new-message', newMessage);
-    
-    res.json(newMessage);
-});
-
-// File upload
+// Configure multer for file uploads
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const type = req.body.type || 'files';
-        const dir = `./database/${type}`;
-        fs.ensureDirSync(dir);
-        cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueName = `${uuidv4()}-${file.originalname}`;
-        cb(null, uniqueName);
+  destination: (req, file, cb) => {
+    if (file.fieldname === 'profile') {
+      cb(null, 'database/profile/');
+    } else if (file.fieldname === 'voice') {
+      cb(null, 'database/voice/');
+    } else {
+      cb(null, 'database/uploads/');
     }
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
 });
 
 const upload = multer({ 
-    storage,
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 }
 });
 
-app.post('/api/upload', auth, upload.single('file'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
-    
-    const fileUrl = `/${req.body.type || 'files'}/${req.file.filename}`;
-    res.json({
-        success: true,
-        fileUrl,
-        fileName: req.file.originalname,
-        fileSize: req.file.size,
-        mimeType: req.file.mimetype
+// Authentication middleware
+const requireAuth = (req, res, next) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
+// OTP API Integration
+async function sendOTP(phoneNumber, code) {
+  try {
+    const response = await axios.get(process.env.OTP_API_URL, {
+      params: {
+        to: phoneNumber,
+        code: code,
+        info: 'https://pchat.onrender.com',
+        text: 'Your $code is your verification code for pChat. Never share this code with anyone.'
+      }
     });
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('OTP send error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Routes
+app.post('/api/send-otp', async (req, res) => {
+  const { phoneNumber } = req.body;
+  
+  if (!phoneNumber) {
+    return res.status(400).json({ error: 'Phone number required' });
+  }
+  
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes expiry
+  
+  // Save OTP to database
+  const otpCodes = await fs.readJson('database/otp_codes.json');
+  otpCodes.push({
+    phoneNumber,
+    code,
+    expiresAt,
+    createdAt: Date.now(),
+    used: false
+  });
+  await fs.writeJson('database/otp_codes.json', otpCodes, { spaces: 2 });
+  
+  // Send OTP via external API
+  const result = await sendOTP(phoneNumber, code);
+  
+  if (result.success) {
+    res.json({ success: true, message: 'OTP sent successfully' });
+  } else {
+    res.status(500).json({ error: 'Failed to send OTP' });
+  }
 });
 
-// Call recording
-app.post('/api/call/record', auth, (req, res) => {
-    const { from, to, duration, type } = req.body;
-    const calls = fs.readJsonSync(CALLS_FILE);
-    
-    const callRecord = {
-        id: uuidv4(),
-        from,
-        to,
-        duration,
-        type, // 'audio' or 'video'
-        timestamp: Date.now(),
-        recording: req.body.recording || null
+app.post('/api/verify-otp', async (req, res) => {
+  const { phoneNumber, code, username, password } = req.body;
+  
+  const otpCodes = await fs.readJson('database/otp_codes.json');
+  const validOTP = otpCodes.find(
+    otp => otp.phoneNumber === phoneNumber && 
+           otp.code === code && 
+           otp.expiresAt > Date.now() && 
+           !otp.used
+  );
+  
+  if (!validOTP) {
+    return res.status(400).json({ error: 'Invalid or expired OTP' });
+  }
+  
+  // Mark OTP as used
+  validOTP.used = true;
+  await fs.writeJson('database/otp_codes.json', otpCodes, { spaces: 2 });
+  
+  // Check if user exists
+  const users = await fs.readJson('database/users.json');
+  let user = users.find(u => u.phoneNumber === phoneNumber);
+  
+  if (!user) {
+    // Create new user
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user = {
+      id: uuidv4(),
+      phoneNumber,
+      username,
+      password: hashedPassword,
+      profilePic: null,
+      status: 'Hey there! I am using pChat',
+      lastSeen: Date.now(),
+      createdAt: Date.now(),
+      isOnline: true
     };
-    
-    calls.push(callRecord);
-    fs.writeJsonSync(CALLS_FILE, calls);
-    
-    res.json(callRecord);
+    users.push(user);
+    await fs.writeJson('database/users.json', users, { spaces: 2 });
+  } else {
+    // Verify password for existing user
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+  }
+  
+  // Create session
+  req.session.userId = user.id;
+  req.session.username = user.username;
+  req.session.phoneNumber = user.phoneNumber;
+  
+  res.json({ 
+    success: true, 
+    user: {
+      id: user.id,
+      username: user.username,
+      phoneNumber: user.phoneNumber,
+      profilePic: user.profilePic
+    }
+  });
 });
 
-// Socket.io for real-time features
-const onlineUsers = new Map();
+app.post('/api/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ success: true });
+});
+
+app.get('/api/me', requireAuth, async (req, res) => {
+  const users = await fs.readJson('database/users.json');
+  const user = users.find(u => u.id === req.session.userId);
+  
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  res.json({
+    id: user.id,
+    username: user.username,
+    phoneNumber: user.phoneNumber,
+    profilePic: user.profilePic,
+    status: user.status,
+    isOnline: user.isOnline
+  });
+});
+
+app.get('/api/users', requireAuth, async (req, res) => {
+  const users = await fs.readJson('database/users.json');
+  const filteredUsers = users
+    .filter(u => u.id !== req.session.userId)
+    .map(u => ({
+      id: u.id,
+      username: u.username,
+      phoneNumber: u.phoneNumber,
+      profilePic: u.profilePic,
+      status: u.status,
+      isOnline: u.isOnline,
+      lastSeen: u.lastSeen
+    }));
+  res.json(filteredUsers);
+});
+
+app.get('/api/messages/:userId', requireAuth, async (req, res) => {
+  const messages = await fs.readJson('database/messages.json');
+  const userMessages = messages.filter(
+    m => (m.from === req.session.userId && m.to === req.params.userId) ||
+         (m.from === req.params.userId && m.to === req.session.userId)
+  );
+  res.json(userMessages);
+});
+
+app.post('/api/upload-profile', requireAuth, upload.single('profile'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  
+  const users = await fs.readJson('database/users.json');
+  const userIndex = users.findIndex(u => u.id === req.session.userId);
+  
+  if (userIndex !== -1) {
+    users[userIndex].profilePic = `/profile/${req.file.filename}`;
+    await fs.writeJson('database/users.json', users, { spaces: 2 });
+    res.json({ success: true, profilePic: users[userIndex].profilePic });
+  } else {
+    res.status(404).json({ error: 'User not found' });
+  }
+});
+
+app.post('/api/update-status', requireAuth, async (req, res) => {
+  const { status } = req.body;
+  const users = await fs.readJson('database/users.json');
+  const userIndex = users.findIndex(u => u.id === req.session.userId);
+  
+  if (userIndex !== -1) {
+    users[userIndex].status = status;
+    await fs.writeJson('database/users.json', users, { spaces: 2 });
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'User not found' });
+  }
+});
+
+// Serve HTML pages
+app.get('/', (req, res) => {
+  if (req.session.userId) {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+  } else {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+});
+
+app.get('/chat/:userId', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
+});
+
+app.get('/call/:userId', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'call.html'));
+});
+
+// Socket.io handlers
+const activeUsers = new Map(); // userId -> socketId
+const activeCalls = new Map(); // callId -> { caller, callee, status }
 
 io.use((socket, next) => {
-    const session = socket.request.session;
-    if (session && session.authenticated) {
-        next();
-    } else {
-        next(new Error('Unauthorized'));
-    }
+  const session = socket.request.session;
+  if (session && session.userId) {
+    socket.userId = session.userId;
+    socket.username = session.username;
+    next();
+  } else {
+    next(new Error('Unauthorized'));
+  }
 });
 
-io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
+io.on('connection', async (socket) => {
+  console.log(`User connected: ${socket.userId}`);
+  
+  // Update user online status
+  const users = await fs.readJson('database/users.json');
+  const userIndex = users.findIndex(u => u.id === socket.userId);
+  if (userIndex !== -1) {
+    users[userIndex].isOnline = true;
+    users[userIndex].lastSeen = Date.now();
+    await fs.writeJson('database/users.json', users, { spaces: 2 });
+  }
+  
+  activeUsers.set(socket.userId, socket.id);
+  
+  // Broadcast online status to all users
+  socket.broadcast.emit('user-online', { userId: socket.userId, username: socket.username });
+  
+  // Handle sending messages
+  socket.on('send-message', async (data) => {
+    const message = {
+      id: uuidv4(),
+      from: socket.userId,
+      to: data.to,
+      text: data.text,
+      type: data.type || 'text',
+      fileUrl: data.fileUrl || null,
+      fileName: data.fileName || null,
+      timestamp: Date.now(),
+      read: false,
+      reactions: [],
+      replyTo: data.replyTo || null,
+      edited: false,
+      deleted: false
+    };
     
-    socket.on('user-online', (userId) => {
-        onlineUsers.set(userId, socket.id);
-        io.emit('user-status', { userId, status: 'online' });
-    });
+    // Save to database
+    const messages = await fs.readJson('database/messages.json');
+    messages.push(message);
+    await fs.writeJson('database/messages.json', messages, { spaces: 2 });
     
-    socket.on('typing', ({ from, to }) => {
-        io.to(to).emit('user-typing', { from, isTyping: true });
-    });
-    
-    socket.on('stop-typing', ({ from, to }) => {
-        io.to(to).emit('user-typing', { from, isTyping: false });
-    });
-    
-    socket.on('message-reaction', ({ messageId, userId, reaction }) => {
-        const messages = fs.readJsonSync(MESSAGES_FILE);
-        const message = messages.find(m => m.id === messageId);
-        
-        if (message) {
-            const existingReaction = message.reactions.find(r => r.userId === userId);
-            if (existingReaction) {
-                existingReaction.reaction = reaction;
-            } else {
-                message.reactions.push({ userId, reaction, timestamp: Date.now() });
-            }
-            fs.writeJsonSync(MESSAGES_FILE, messages);
-            io.emit('message-updated', message);
-        }
-    });
-    
-    socket.on('edit-message', ({ messageId, newMessage }) => {
-        const messages = fs.readJsonSync(MESSAGES_FILE);
-        const message = messages.find(m => m.id === messageId);
-        
-        if (message) {
-            message.message = newMessage;
-            message.edited = true;
-            message.editedAt = Date.now();
-            fs.writeJsonSync(MESSAGES_FILE, messages);
-            io.emit('message-updated', message);
-        }
-    });
-    
-    socket.on('delete-message', ({ messageId, forEveryone }) => {
-        const messages = fs.readJsonSync(MESSAGES_FILE);
-        const messageIndex = messages.findIndex(m => m.id === messageId);
-        
-        if (messageIndex !== -1) {
-            if (forEveryone) {
-                messages[messageIndex].deleted = true;
-                messages[messageIndex].message = 'This message was deleted';
-            } else {
-                messages.splice(messageIndex, 1);
-            }
-            fs.writeJsonSync(MESSAGES_FILE, messages);
-            io.emit('message-deleted', { messageId, forEveryone });
-        }
-    });
-    
-    // WebRTC signaling for calls
-    socket.on('call-user', ({ from, to, offer, type }) => {
-        const targetSocket = onlineUsers.get(to);
-        if (targetSocket) {
-            io.to(targetSocket).emit('incoming-call', { from, offer, type });
-        }
-    });
-    
-    socket.on('answer-call', ({ to, answer }) => {
-        const targetSocket = onlineUsers.get(to);
-        if (targetSocket) {
-            io.to(targetSocket).emit('call-answered', { answer });
-        }
-    });
-    
-    socket.on('ice-candidate', ({ to, candidate }) => {
-        const targetSocket = onlineUsers.get(to);
-        if (targetSocket) {
-            io.to(targetSocket).emit('ice-candidate', { candidate });
-        }
-    });
-    
-    socket.on('end-call', ({ to }) => {
-        const targetSocket = onlineUsers.get(to);
-        if (targetSocket) {
-            io.to(targetSocket).emit('call-ended');
-        }
-    });
-    
-    socket.on('disconnect', () => {
-        for (const [userId, socketId] of onlineUsers.entries()) {
-            if (socketId === socket.id) {
-                onlineUsers.delete(userId);
-                io.emit('user-status', { userId, status: 'offline' });
-                break;
-            }
-        }
-    });
-});
-
-// Serve main page
-app.get('/', (req, res) => {
-    if (req.session && req.session.authenticated) {
-        res.redirect('/dashboard');
-    } else {
-        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    // Send to recipient if online
+    const recipientSocketId = activeUsers.get(data.to);
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit('new-message', message);
     }
-});
-
-app.get('/login', (req, res) => {
-    if (req.session && req.session.authenticated) {
-        res.redirect('/dashboard');
-    } else {
-        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    
+    // Send back to sender
+    socket.emit('message-sent', message);
+  });
+  
+  // Handle message reactions
+  socket.on('add-reaction', async (data) => {
+    const messages = await fs.readJson('database/messages.json');
+    const message = messages.find(m => m.id === data.messageId);
+    
+    if (message) {
+      const existingReaction = message.reactions.find(r => r.userId === socket.userId);
+      if (existingReaction) {
+        existingReaction.emoji = data.emoji;
+      } else {
+        message.reactions.push({
+          userId: socket.userId,
+          emoji: data.emoji,
+          timestamp: Date.now()
+        });
+      }
+      await fs.writeJson('database/messages.json', messages, { spaces: 2 });
+      
+      // Notify participants
+      io.to(activeUsers.get(message.from)).emit('message-updated', message);
+      if (message.to !== message.from) {
+        io.to(activeUsers.get(message.to)).emit('message-updated', message);
+      }
     }
+  });
+  
+  // Handle message edit
+  socket.on('edit-message', async (data) => {
+    const messages = await fs.readJson('database/messages.json');
+    const message = messages.find(m => m.id === data.messageId);
+    
+    if (message && message.from === socket.userId) {
+      message.text = data.newText;
+      message.edited = true;
+      await fs.writeJson('database/messages.json', messages, { spaces: 2 });
+      
+      // Notify participants
+      io.to(activeUsers.get(message.from)).emit('message-updated', message);
+      if (message.to !== message.from) {
+        io.to(activeUsers.get(message.to)).emit('message-updated', message);
+      }
+    }
+  });
+  
+  // Handle message delete
+  socket.on('delete-message', async (data) => {
+    const messages = await fs.readJson('database/messages.json');
+    const message = messages.find(m => m.id === data.messageId);
+    
+    if (message && message.from === socket.userId) {
+      if (data.forEveryone) {
+        message.deleted = true;
+        message.text = 'This message was deleted';
+      } else {
+        const index = messages.findIndex(m => m.id === data.messageId);
+        messages.splice(index, 1);
+      }
+      await fs.writeJson('database/messages.json', messages, { spaces: 2 });
+      
+      // Notify participants
+      io.to(activeUsers.get(message.from)).emit('message-deleted', { messageId: data.messageId, forEveryone: data.forEveryone });
+      if (message.to !== message.from) {
+        io.to(activeUsers.get(message.to)).emit('message-deleted', { messageId: data.messageId, forEveryone: data.forEveryone });
+      }
+    }
+  });
+  
+  // WebRTC signaling for calls
+  socket.on('call-user', (data) => {
+    const callId = uuidv4();
+    activeCalls.set(callId, {
+      caller: socket.userId,
+      callee: data.to,
+      status: 'calling',
+      startTime: Date.now()
+    });
+    
+    io.to(activeUsers.get(data.to)).emit('incoming-call', {
+      callId,
+      from: socket.userId,
+      fromName: socket.username,
+      offer: data.offer
+    });
+  });
+  
+  socket.on('answer-call', (data) => {
+    const call = activeCalls.get(data.callId);
+    if (call && call.status === 'calling') {
+      call.status = 'active';
+      io.to(activeUsers.get(call.caller)).emit('call-answered', {
+        callId: data.callId,
+        answer: data.answer
+      });
+    }
+  });
+  
+  socket.on('ice-candidate', (data) => {
+    io.to(activeUsers.get(data.to)).emit('ice-candidate', {
+      candidate: data.candidate,
+      from: socket.userId
+    });
+  });
+  
+  socket.on('end-call', async (data) => {
+    const call = activeCalls.get(data.callId);
+    if (call) {
+      call.status = 'ended';
+      call.endTime = Date.now();
+      call.duration = call.endTime - call.startTime;
+      
+      // Save call record
+      const calls = await fs.readJson('database/calls.json');
+      calls.push(call);
+      await fs.writeJson('database/calls.json', calls, { spaces: 2 });
+      
+      activeCalls.delete(data.callId);
+      
+      io.to(activeUsers.get(call.caller)).emit('call-ended', { callId: data.callId });
+      io.to(activeUsers.get(call.callee)).emit('call-ended', { callId: data.callId });
+    }
+  });
+  
+  // Handle typing indicator
+  socket.on('typing', (data) => {
+    const recipientSocketId = activeUsers.get(data.to);
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit('user-typing', {
+        from: socket.userId,
+        fromName: socket.username
+      });
+    }
+  });
+  
+  // Handle read receipts
+  socket.on('mark-read', async (data) => {
+    const messages = await fs.readJson('database/messages.json');
+    const unreadMessages = messages.filter(
+      m => m.from === data.from && m.to === socket.userId && !m.read
+    );
+    
+    unreadMessages.forEach(m => m.read = true);
+    await fs.writeJson('database/messages.json', messages, { spaces: 2 });
+    
+    io.to(activeUsers.get(data.from)).emit('messages-read', {
+      by: socket.userId,
+      messageIds: unreadMessages.map(m => m.id)
+    });
+  });
+  
+  // Disconnect
+  socket.on('disconnect', async () => {
+    console.log(`User disconnected: ${socket.userId}`);
+    activeUsers.delete(socket.userId);
+    
+    // Update user offline status
+    const users = await fs.readJson('database/users.json');
+    const userIndex = users.findIndex(u => u.id === socket.userId);
+    if (userIndex !== -1) {
+      users[userIndex].isOnline = false;
+      users[userIndex].lastSeen = Date.now();
+      await fs.writeJson('database/users.json', users, { spaces: 2 });
+    }
+    
+    socket.broadcast.emit('user-offline', { userId: socket.userId });
+  });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`pChat server running on port ${PORT}`);
 });
