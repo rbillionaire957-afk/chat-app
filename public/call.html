@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Call - pChat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, #131eb0 0%, #79c3e8 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .nav-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+
+        .call-container {
+            flex: 1;
+            display: flex;
+            position: relative;
+            background: #000;
+        }
+
+        .remote-video {
+            flex: 1;
+            background: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remote-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .local-video {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #79c3e8;
+        }
+
+        .local-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            background: rgba(0,0,0,0.8);
+            padding: 15px 25px;
+            border-radius: 50px;
+        }
+
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s;
+        }
+
+        .control-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .btn-end {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-audio {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-video {
+            background: #2196f3;
+            color: white;
+        }
+
+        .btn-screen {
+            background: #ff9800;
+            color: white;
+        }
+
+        .incoming-call {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="logo">pChat</div>
+        <div class="nav-buttons">
+            <button class="nav-btn" onclick="window.location.href='/dashboard'">📊 Dashboard</button>
+            <button class="nav-btn" onclick="window.location.href='/chat'">💬 Chat</button>
+            <button class="nav-btn" id="logout-btn">🚪 Logout</button>
+        </div>
+    </div>
+
+    <div class="call-container">
+        <div class="remote-video">
+            <video id="remote-video" autoplay playsinline></video>
+        </div>
+        <div class="local-video">
+            <video id="local-video" autoplay playsinline muted></video>
+        </div>
+        <div class="controls">
+            <button class="control-btn btn-audio" id="toggle-audio">🎤</button>
+            <button class="control-btn btn-video" id="toggle-video">📹</button>
+            <button class="control-btn btn-screen" id="screen-share">🖥️</button>
+            <button class="control-btn btn-end" id="end-call">📞</button>
+        </div>
+    </div>
+
+    <div id="incoming-call" class="incoming-call hidden">
+        <h3>Incoming Call</h3>
+        <p id="caller-name"></p>
+        <div style="margin-top: 20px;">
+            <button id="accept-call" style="background: #4caf50; color: white; padding: 10px 20px; margin-right: 10px;">Accept</button>
+            <button id="reject-call" style="background: #f44336; color: white; padding: 10px 20px;">Reject</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/call.js"></script>
+</body>
+</html>
